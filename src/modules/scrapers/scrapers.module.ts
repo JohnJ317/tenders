@@ -1,8 +1,7 @@
 import {
-  Controller, Get, Injectable, Logger, Module, OnModuleInit,
+  Controller, Get, Module,
   Param, Post, UseGuards,
 } from '@nestjs/common';
-import { Cron, CronExpression, ScheduleModule } from '@nestjs/schedule';
 import { ScrapersService, SCRAPERS_TOKEN } from './scrapers.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AbstractScraper } from './abstract-scraper';
@@ -37,30 +36,9 @@ const SCRAPER_CLASSES = [
   EuTedScraper, UsaidScraper,
 ];
 
-@Injectable()
-export class ScraperSchedulerService implements OnModuleInit {
-  private readonly logger = new Logger(ScraperSchedulerService.name);
-
-  constructor(private readonly scrapers: ScrapersService) {}
-
-  onModuleInit() {
-    this.logger.log(
-      `Scheduler initialisé — ${this.scrapers.listSources().filter((s) => s.enabled).length} scrapers actifs`,
-    );
-  }
-
-  @Cron(CronExpression.EVERY_30_MINUTES)
-  async scheduledRun() {
-    const sources = this.scrapers.listSources().filter((s) => s.enabled);
-    for (const src of sources) {
-      try {
-        await this.scrapers.runScraper(src.sourceCode);
-      } catch (err: any) {
-        this.logger.warn(`Scheduled run of ${src.sourceCode} failed: ${err.message}`);
-      }
-    }
-  }
-}
+// NOTE: l'ancien `ScraperSchedulerService` (cron in-process toutes les 30 min)
+// a été retiré au profit d'un déclenchement HTTP externe.
+// Voir `src/modules/cron/cron.controller.ts` (POST /api/cron/scrapers/run-all).
 
 @Controller('scrapers')
 @UseGuards(RolesGuard)
@@ -93,11 +71,10 @@ export class ScrapersController {
 }
 
 @Module({
-  imports: [ScheduleModule.forRoot(), MatchingModule, J360Module],
+  imports: [MatchingModule, J360Module],
   controllers: [ScrapersController],
   providers: [
     ScrapersService,
-    ScraperSchedulerService,
     ...SCRAPER_CLASSES,
     {
       provide: SCRAPERS_TOKEN,

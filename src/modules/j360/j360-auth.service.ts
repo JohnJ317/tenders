@@ -26,13 +26,17 @@ export class J360AuthService {
   private readonly cookieTtlSeconds = 7 * 24 * 3600;
 
   constructor() {
-    // Redis est déjà configuré ailleurs dans l'app (BullMQ). On réutilise la même connexion.
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT || 6379),
-      password: process.env.REDIS_PASSWORD || undefined,
-      maxRetriesPerRequest: 3,
-    });
+    // Priorité à REDIS_URL (format Railway/Heroku : redis[s]://[user:pass@]host:port[/db]).
+    // Fallback sur REDIS_HOST/PORT/PASSWORD pour le dev local docker-compose.
+    const url = process.env.REDIS_URL;
+    this.redis = url
+      ? new Redis(url, { maxRetriesPerRequest: 3 })
+      : new Redis({
+          host: process.env.REDIS_HOST || 'localhost',
+          port: Number(process.env.REDIS_PORT || 6379),
+          password: process.env.REDIS_PASSWORD || undefined,
+          maxRetriesPerRequest: 3,
+        });
   }
 
   /**

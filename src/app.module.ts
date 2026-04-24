@@ -36,6 +36,7 @@ import { ScrapersModule } from './modules/scrapers/scrapers.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { ClaudeModule } from './modules/claude/claude.module';
+import { CronModule } from './modules/cron/cron.module';
 
 
 @Module({
@@ -55,6 +56,7 @@ import { ClaudeModule } from './modules/claude/claude.module';
 
     // Sprint 5a — Veille
     AlertsModule, MatchingModule, WatchDomainsModule, ScrapedTendersModule, ScrapersModule,J360Module,ClaudeModule,AnalyticsModule,
+    CronModule,
   ],
 })
 export class AppModule implements NestModule {

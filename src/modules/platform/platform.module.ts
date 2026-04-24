@@ -1,5 +1,3 @@
-import { Cron, CronExpression, ScheduleModule } from '@nestjs/schedule';
-import { Injectable, OnModuleInit } from '@nestjs/common';
 import {
   Body, Controller, Get, HttpCode, HttpStatus, Module, Param, ParseUUIDPipe,
   Patch, Post, UseGuards, Logger, Query,
@@ -357,43 +355,11 @@ export class PlatformFinanceController {
 }
 
 // ============================================================
-// PLATFORM SCHEDULER (cron quotidien à 9h Abidjan)
+// PLATFORM SCHEDULER — retiré au profit du déclenchement HTTP externe.
+// Voir `src/modules/cron/cron.controller.ts` (POST /api/cron/platform/daily-tasks).
 // ============================================================
-@Injectable()
-export class PlatformSchedulerService implements OnModuleInit {
-  private readonly logger = new Logger(PlatformSchedulerService.name);
-  constructor(private readonly platform: PlatformService) {}
-
-  onModuleInit() {
-    this.logger.log('PlatformScheduler initialisé — cron quotidien 9h Abidjan');
-  }
-
-  /**
-   * Cron quotidien à 9h00 (Africa/Abidjan = UTC) :
-   * 1. Envoie les emails de rappel J-1 aux cabinets dont l'échéance arrive demain
-   * 2. Suspend les cabinets en retard de paiement (selon suspensionGraceDays config)
-   */
-  @Cron('0 9 * * *', { timeZone: 'Africa/Abidjan' })
-  async dailyTasks() {
-    this.logger.log('⏰ Démarrage des tâches quotidiennes…');
-    try {
-      const reminders = await this.platform.runReminderCheck();
-      this.logger.log(`Rappels J-1 envoyés : ${reminders.reminded}`);
-    } catch (err: any) {
-      this.logger.error(`Erreur runReminderCheck : ${err.message}`);
-    }
-    try {
-      const suspensions = await this.platform.runSuspensionCheck();
-      this.logger.log(`Suspensions effectuées : ${suspensions.suspended}`);
-    } catch (err: any) {
-      this.logger.error(`Erreur runSuspensionCheck : ${err.message}`);
-    }
-    this.logger.log('✅ Tâches quotidiennes terminées');
-  }
-}
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
   controllers: [
     PlatformCabinetsController,
     PlatformFinanceController,
@@ -403,7 +369,7 @@ export class PlatformSchedulerService implements OnModuleInit {
     WaveWebhookController,
     CabinetBillingController,
   ],
-  providers: [PlatformService, PlatformFinanceService, PlatformSchedulerService],
+  providers: [PlatformService, PlatformFinanceService],
   exports: [PlatformService],
 })
 export class PlatformModule {}
