@@ -25,10 +25,13 @@ export class TenantMiddleware implements NestMiddleware {
   private readonly publicPaths = [
     '/api/auth/login',
     '/api/webhooks/wave',
-  '/api/invitations/accept',
-  '/api/invitations/validate',
+    '/api/invitations/accept',
+    '/api/invitations/validate',
     '/api/auth/register',
     '/api/health',
+    // Endpoints cron : auth via CRON_SECRET (Bearer), pas via JWT.
+    // Le CronSecretGuard valide le secret côté contrôleur.
+    '/api/cron',
   ];
 
   constructor(
