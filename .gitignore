@@ -36,10 +36,11 @@ coverage/
 .turbo/
 
 # === Données locales (Docker volumes, uploads, MinIO) ===
-data/
-uploads/
-storage/
-tmp/
+# Ancrées à la racine pour ne pas masquer src/common/storage ou similaires.
+/data/
+/uploads/
+/storage/
+/tmp/
 *.sqlite
 *.sqlite3
 *.db
