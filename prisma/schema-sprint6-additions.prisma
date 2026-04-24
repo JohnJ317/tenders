@@ -1,0 +1,55 @@
+// ============================================================================
+// AJOUT AU SCHEMA PRISMA
+// ============================================================================
+// Colle ce modèle à la fin de prisma/schema.prisma, avant la dernière accolade.
+// Puis ajoute la relation inverse dans le modèle Tender (ligne ajoutée commentée).
+// ============================================================================
+
+/// Résultat d'une analyse automatisée d'un DCE par Claude.
+/// Un Tender peut avoir au plus une analyse à la fois (1:1). Ré-analyser écrase l'ancienne.
+model TenderAnalysis {
+  id              String   @id @default(uuid())
+  tenderId        String   @unique
+  tender          Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// Les 5 champs extraits par Claude
+  estimatedBudget Float?
+  currency        String?      // ex: "FCFA", "EUR", "USD"
+  deadlineIso     DateTime?    // date limite extraite (peut être plus précise que celle du scraping)
+  country         String?      // code ISO2 ex: "CI"
+  sector          String?      // ex: "audit financier", "conseil stratégique"
+  summary         String?      @db.Text  // résumé 3 lignes
+  
+  /// Métadonnées sur l'analyse elle-même
+  modelUsed       String       // ex: "claude-haiku-4-5"
+  inputTokens     Int?
+  outputTokens    Int?
+  costUsd         Float?       // coût estimé de cette analyse
+  documentsCount  Int          // nombre de documents analysés
+  totalPages      Int?         // pages totales analysées
+  confidence      String?      // "HIGH", "MEDIUM", "LOW" selon Claude
+  rawResponse     Json?        // stocke la réponse JSON brute pour debug
+
+  /// État du job
+  status          AnalysisStatus @default(COMPLETED)
+  errorMessage    String?        @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("tender_analyses")
+}
+
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// ============================================================================
+// DANS LE MODÈLE `Tender` EXISTANT, AJOUTER cette ligne avec les autres relations :
+//
+//   analysis  TenderAnalysis?
+//
+// ============================================================================

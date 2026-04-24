@@ -1,0 +1,56 @@
+// ============================================================================
+// AJOUTS À COPIER DANS prisma/schema.prisma
+// ============================================================================
+// À insérer après le modèle WatchDomain ou à la fin du fichier, AVANT la
+// fermeture du generator. Garde le reste du schéma tel quel.
+// ============================================================================
+
+/// Configuration J360 par cabinet.
+/// Stocke les filtres (pays, trades, types) utilisés lors des appels à l'API J360.
+model J360Config {
+  id              String   @id @default(uuid())
+  cabinetId       String   @unique
+  cabinet         Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  /// Codes ISO-2 des pays à scraper (ex: ["CI","SN","BF"]). Vide = aucune source sélectionnée.
+  countries       String[] @default([])
+
+  /// IDs des trades J360 (1 à ~150). Vide = aucune catégorie sélectionnée.
+  tradeIds        Int[]    @default([])
+
+  /// Codes des types d'avis J360. Par défaut uniquement MC (marchés en cours).
+  /// Options : MC (Marché en Cours), MA (archivé), RM (résultat), AB (abandonné), AP (attribué)
+  announceTypes   String[] @default(["MC"])
+
+  /// Active ou non la veille J360 pour ce cabinet.
+  isActive        Boolean  @default(true)
+
+  /// Nombre maximum de pages J360 à récupérer par run (20 AO par page).
+  /// 5 pages = 100 AO par run max. Évite la saturation.
+  maxPagesPerRun  Int      @default(5)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("j360_configs")
+}
+
+/// Catalogue de référence des trades J360.
+/// Peuplé par le seed, non modifiable par l'utilisateur.
+/// Sert à afficher le multi-select trades avec noms et catégories.
+model J360TradeCatalog {
+  id              Int      @id
+  name            String
+  summary         String?
+  /// Liste des catégories J360 sous forme [{id: 3, name: "Consulting, formation, finance"}, ...]
+  categories      Json
+
+  @@map("j360_trade_catalog")
+}
+
+// ============================================================================
+// Dans le modèle Cabinet existant, AJOUTER cette ligne pour la relation inverse :
+//
+//   j360Config  J360Config?
+//
+// ============================================================================

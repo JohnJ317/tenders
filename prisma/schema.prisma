@@ -1,0 +1,796 @@
+// Prisma schema - Sprint 3 (pricing engine)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_ADMIN")
+}
+
+enum CabinetStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum Country {
+  CI
+  SN
+  BF
+  ML
+  TG
+  BJ
+  NE
+  GW
+  CM
+  GA
+  CD
+  MG
+  OTHER
+}
+
+enum Role {
+  ADMIN_CABINET
+  ASSOCIE
+  MANAGER
+  CONSULTANT
+}
+
+enum Grade {
+  ASSOCIE
+  MANAGER
+  SENIOR
+  JUNIOR
+  ASSISTANT
+}
+
+enum ActivityType {
+  CAC
+  AUDIT_CONTRACTUEL
+  EC_TENUE
+  EC_ETATS_FINANCIERS
+  DUE_DILIGENCE
+  AUDIT_BAILLEUR
+  CONSEIL_FISCAL
+  EVALUATION
+  CONSEIL_FINANCIER
+  AUTRE
+}
+
+enum TenderStage {
+  WATCHING
+  QUALIFICATION
+  EOI
+  SHORTLISTED
+  PREPARING
+  SUBMITTED
+  NEGOTIATION
+  WON
+  LOST
+  CANCELLED
+}
+
+enum TenderSource {
+  SIGMAP
+  WORLD_BANK
+  AFDB
+  BOAD
+  EU
+  AFD
+  USAID
+  GIZ
+  UNGM
+  PRIVATE
+  OTHER
+}
+
+enum TenderType {
+  AMI
+  AAP
+  DIRECT
+  RESTRICTED
+  OPEN
+  PREQUAL
+}
+
+enum EventType {
+  CONFERENCE
+  SALON
+  TRAINING
+  NETWORKING
+  CLIENT_MEETING
+  WEBINAR
+  OTHER
+}
+
+enum EventStage {
+  IDENTIFIED
+  REGISTERED
+  ATTENDED
+  FOLLOW_UP
+  ROI_MEASURED
+  CANCELLED
+}
+
+enum TenderDocumentCategory {
+  DCE
+  TDR
+  METHODOLOGIE
+  CV
+  OFFRE_TECHNIQUE
+  OFFRE_FINANCIERE
+  ANNEXE
+  DECISION_ATTRIBUTION
+  CONTRAT
+  CORRESPONDANCE
+  AUTRE
+}
+
+enum EventDocumentCategory {
+  PROGRAMME
+  INVITATION
+  CARTE_VISITE
+  COMPTE_RENDU
+  PHOTO
+  AUTRE
+}
+
+enum PricingCoefficientCategory {
+  SECTOR
+  COMPLEXITY
+  URGENCY
+  RECURRENCE
+  STRATEGIC
+  VOLUME
+  GEOGRAPHY
+  CUSTOM
+}
+
+enum CompetitiveIntelSource {
+  OFFICIAL_NOTIFICATION
+  PUBLIC_ANNOUNCEMENT
+  RUMOR
+  SELF_REPORTED
+  OTHER
+}
+
+model Cabinet {
+  id            String          @id @default(uuid()) @db.Uuid
+  name          String          @db.VarChar(200)
+  country       Country         @default(CI)
+  currency      String          @default("XOF") @db.VarChar(3)
+  vatRate       Decimal         @default(0.18) @db.Decimal(5, 4)
+  language      String          @default("fr") @db.VarChar(5)
+  status        CabinetStatus   @default(TRIAL)
+  createdAt     DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(6)
+
+  users         User[]
+  activities    Activity[]
+  grilleHoraire GrilleHoraire[]
+  tenders       Tender[]
+  events        Event[]
+  coefficients  PricingCoefficient[]
+  watchDomains  WatchDomain[]
+  alerts        Alert[]
+  j360Config    J360Config?
+  consultants   Consultant[]
+  references    Reference[]
+  
+
+  @@index([status])
+  @@map("cabinets")
+  
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  cabinetId    String    @map("cabinet_id") @db.Uuid
+  email        String    @db.VarChar(320)
+  passwordHash String?   @map("password_hash") @db.VarChar(255)
+  firstName    String    @map("first_name") @db.VarChar(100)
+  lastName     String    @map("last_name") @db.VarChar(100)
+  role         Role
+  grade        Grade?
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet                    Cabinet            @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  tendersLed                 Tender[]           @relation("TenderLead")
+  tendersCreated             Tender[]           @relation("TenderCreator")
+  tenderTransitions          TenderTransition[] @relation("TenderTransitionUser")
+  tenderDocumentsUploaded    TenderDocument[]   @relation("TenderDocumentUploader")
+  eventsLed                  Event[]            @relation("EventLead")
+  eventsCreated              Event[]            @relation("EventCreator")
+  eventTransitions           EventTransition[]  @relation("EventTransitionUser")
+  eventDocumentsUploaded     EventDocument[]    @relation("EventDocumentUploader")
+  tenderPricingsCreated      TenderPricing[]    @relation("TenderPricingCreator")
+  competitiveIntelsCreated   CompetitiveIntel[] @relation("CompetitiveIntelCreator")
+
+  @@unique([cabinetId, email])
+  @@index([cabinetId])
+  @@map("users")
+}
+
+model Activity {
+  id        String       @id @default(uuid()) @db.Uuid
+  cabinetId String       @map("cabinet_id") @db.Uuid
+  type      ActivityType
+  label     String       @db.VarChar(200)
+  isActive  Boolean      @default(true) @map("is_active")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet   Cabinet      @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@index([cabinetId])
+  @@map("activities")
+}
+
+model GrilleHoraire {
+  id            String    @id @default(uuid()) @db.Uuid
+  cabinetId     String    @map("cabinet_id") @db.Uuid
+  grade         Grade
+  hourlyRate    Decimal   @map("hourly_rate") @db.Decimal(12, 2)
+  dailyRate     Decimal?  @map("daily_rate") @db.Decimal(12, 2)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet       Cabinet   @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@index([cabinetId, grade, effectiveFrom])
+  @@map("grille_horaire")
+}
+
+model Tender {
+  id                 String       @id @default(uuid()) @db.Uuid
+  cabinetId          String       @map("cabinet_id") @db.Uuid
+  reference          String?      @db.VarChar(100)
+  title              String       @db.VarChar(500)
+  description        String?      @db.Text
+  clientName         String?      @map("client_name") @db.VarChar(300)
+  sector             String?      @db.VarChar(200)
+  source             TenderSource @default(OTHER)
+  type               TenderType   @default(OPEN)
+  country            Country?
+  stage              TenderStage  @default(WATCHING)
+  isOpen             Boolean      @default(true) @map("is_open")
+  publishedAt        DateTime?    @map("published_at") @db.Timestamptz(6)
+  submissionDeadline DateTime?    @map("submission_deadline") @db.Timestamptz(6)
+  decisionExpectedAt DateTime?    @map("decision_expected_at") @db.Timestamptz(6)
+  startDate          DateTime?    @map("start_date") @db.Date
+  budgetIndicative   Decimal?     @map("budget_indicative") @db.Decimal(15, 2)
+  ourProposedAmount  Decimal?     @map("our_proposed_amount") @db.Decimal(15, 2)
+  wonAmount          Decimal?     @map("won_amount") @db.Decimal(15, 2)
+  currency           String       @default("XOF") @db.VarChar(3)
+  sourceUrl          String?      @map("source_url") @db.Text
+  leadUserId         String?      @map("lead_user_id") @db.Uuid
+  lostReason         String?      @map("lost_reason") @db.Text
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById        String?      @map("created_by_id") @db.Uuid
+
+  cabinet            Cabinet            @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  leadUser           User?              @relation("TenderLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  createdBy          User?              @relation("TenderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  transitions        TenderTransition[]
+  documents          TenderDocument[]
+  pricings           TenderPricing[]
+  competitiveIntels  CompetitiveIntel[]
+  analysis           TenderAnalysis?
+  proposal           TenderProposal?
+  promotedFromScrapes  ScrapedTender[]  @relation("ScrapedTenderPromotion")
+  alertsRef            Alert[]          @relation("TenderAlerts")
+
+  @@index([cabinetId, stage])
+  @@index([cabinetId, isOpen])
+  @@index([cabinetId, submissionDeadline])
+  @@index([cabinetId, leadUserId])
+  @@map("tenders")
+
+}
+
+model TenderTransition {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenderId      String       @map("tender_id") @db.Uuid
+  fromStage     TenderStage? @map("from_stage")
+  toStage       TenderStage  @map("to_stage")
+  note          String?      @db.Text
+  performedById String?      @map("performed_by_id") @db.Uuid
+  performedAt   DateTime     @default(now()) @map("performed_at") @db.Timestamptz(6)
+
+  tender        Tender       @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  performedBy   User?        @relation("TenderTransitionUser", fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([tenderId, performedAt])
+  @@map("tender_transitions")
+}
+
+model TenderDocument {
+  id           String                 @id @default(uuid()) @db.Uuid
+  tenderId     String                 @map("tender_id") @db.Uuid
+  category     TenderDocumentCategory @default(AUTRE)
+  filename     String                 @db.VarChar(500)
+  mimeType     String                 @map("mime_type") @db.VarChar(200)
+  sizeBytes    BigInt                 @map("size_bytes")
+  s3Key        String                 @unique @map("s3_key") @db.VarChar(500)
+  description  String?                @db.Text
+  uploadedById String?                @map("uploaded_by_id") @db.Uuid
+  uploadedAt   DateTime               @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  tender       Tender                 @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  uploadedBy   User?                  @relation("TenderDocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([tenderId, category])
+  @@map("tender_documents")
+}
+
+model Event {
+  id               String     @id @default(uuid()) @db.Uuid
+  cabinetId        String     @map("cabinet_id") @db.Uuid
+  title            String     @db.VarChar(500)
+  description      String?    @db.Text
+  type             EventType  @default(CONFERENCE)
+  startsAt         DateTime   @map("starts_at") @db.Timestamptz(6)
+  endsAt           DateTime?  @map("ends_at") @db.Timestamptz(6)
+  location         String?    @db.VarChar(300)
+  city             String?    @db.VarChar(100)
+  country          Country?
+  isVirtual        Boolean    @default(false) @map("is_virtual")
+  stage            EventStage @default(IDENTIFIED)
+  registrationCost Decimal?   @map("registration_cost") @db.Decimal(12, 2)
+  travelCost       Decimal?   @map("travel_cost") @db.Decimal(12, 2)
+  currency         String     @default("XOF") @db.VarChar(3)
+  expectedLeads    Int?       @map("expected_leads")
+  actualLeads      Int?       @map("actual_leads")
+  convertedLeads   Int?       @map("converted_leads")
+  roiNotes         String?    @map("roi_notes") @db.Text
+  url              String?    @db.Text
+  leadUserId       String?    @map("lead_user_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById      String?    @map("created_by_id") @db.Uuid
+
+  cabinet          Cabinet           @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  leadUser         User?             @relation("EventLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  transitions      EventTransition[]
+  documents        EventDocument[]
+
+  @@index([cabinetId, stage])
+  @@index([cabinetId, startsAt])
+  @@map("events")
+}
+
+model EventTransition {
+  id            String      @id @default(uuid()) @db.Uuid
+  eventId       String      @map("event_id") @db.Uuid
+  fromStage     EventStage? @map("from_stage")
+  toStage       EventStage  @map("to_stage")
+  note          String?     @db.Text
+  performedById String?     @map("performed_by_id") @db.Uuid
+  performedAt   DateTime    @default(now()) @map("performed_at") @db.Timestamptz(6)
+
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  performedBy   User?       @relation("EventTransitionUser", fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([eventId, performedAt])
+  @@map("event_transitions")
+}
+
+model EventDocument {
+  id           String                @id @default(uuid()) @db.Uuid
+  eventId      String                @map("event_id") @db.Uuid
+  category     EventDocumentCategory @default(AUTRE)
+  filename     String                @db.VarChar(500)
+  mimeType     String                @map("mime_type") @db.VarChar(200)
+  sizeBytes    BigInt                @map("size_bytes")
+  s3Key        String                @unique @map("s3_key") @db.VarChar(500)
+  description  String?               @db.Text
+  uploadedById String?               @map("uploaded_by_id") @db.Uuid
+  uploadedAt   DateTime              @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  event        Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploadedBy   User?                 @relation("EventDocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([eventId, category])
+  @@map("event_documents")
+}
+
+// ============================================================================
+// Sprint 3 — Pricing & Competitive Intelligence
+// ============================================================================
+
+model PricingCoefficient {
+  id          String                     @id @default(uuid()) @db.Uuid
+  cabinetId   String                     @map("cabinet_id") @db.Uuid
+  code        String                     @db.VarChar(100)
+  label       String                     @db.VarChar(200)
+  category    PricingCoefficientCategory
+  multiplier  Decimal                    @db.Decimal(5, 3)
+  description String?                    @db.Text
+  isSystem    Boolean                    @default(false) @map("is_system")
+  isActive    Boolean                    @default(true) @map("is_active")
+  sortOrder   Int                        @default(0) @map("sort_order")
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet     Cabinet                    @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([cabinetId, code])
+  @@index([cabinetId, category])
+  @@map("pricing_coefficients")
+}
+
+model TenderPricing {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenderId             String   @map("tender_id") @db.Uuid
+  name                 String   @db.VarChar(200)
+  associeHours         Decimal  @default(0) @map("associe_hours") @db.Decimal(8, 2)
+  managerHours         Decimal  @default(0) @map("manager_hours") @db.Decimal(8, 2)
+  seniorHours          Decimal  @default(0) @map("senior_hours") @db.Decimal(8, 2)
+  juniorHours          Decimal  @default(0) @map("junior_hours") @db.Decimal(8, 2)
+  assistantHours       Decimal  @default(0) @map("assistant_hours") @db.Decimal(8, 2)
+  travelCost           Decimal  @default(0) @map("travel_cost") @db.Decimal(15, 2)
+  otherCosts           Decimal  @default(0) @map("other_costs") @db.Decimal(15, 2)
+  otherCostsLabel      String?  @map("other_costs_label") @db.VarChar(200)
+  coefficientsSnapshot Json     @map("coefficients_snapshot")
+  floorMarginRate      Decimal  @default(0.10) @map("floor_margin_rate") @db.Decimal(5, 4)
+  targetMarginRate     Decimal  @default(0.25) @map("target_margin_rate") @db.Decimal(5, 4)
+  ceilingMarginRate    Decimal  @default(0.40) @map("ceiling_margin_rate") @db.Decimal(5, 4)
+  baseCost             Decimal  @map("base_cost") @db.Decimal(15, 2)
+  adjustedCost         Decimal  @map("adjusted_cost") @db.Decimal(15, 2)
+  floorPrice           Decimal  @map("floor_price") @db.Decimal(15, 2)
+  targetPrice          Decimal  @map("target_price") @db.Decimal(15, 2)
+  ceilingPrice         Decimal  @map("ceiling_price") @db.Decimal(15, 2)
+  currency             String   @default("XOF") @db.VarChar(3)
+  notes                String?  @db.Text
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?  @map("created_by_id") @db.Uuid
+
+  tender               Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  createdBy            User?    @relation("TenderPricingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenderId])
+  @@map("tender_pricings")
+}
+
+model CompetitiveIntel {
+  id              String                 @id @default(uuid()) @db.Uuid
+  tenderId        String                 @map("tender_id") @db.Uuid
+  competitorName  String                 @map("competitor_name") @db.VarChar(200)
+  competitorPrice Decimal?               @map("competitor_price") @db.Decimal(15, 2)
+  currency        String                 @default("XOF") @db.VarChar(3)
+  isWinner        Boolean                @default(false) @map("is_winner")
+  source          CompetitiveIntelSource @default(OTHER)
+  notes           String?                @db.Text
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById     String?                @map("created_by_id") @db.Uuid
+
+  tender          Tender                 @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  createdBy       User?                  @relation("CompetitiveIntelCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenderId])
+  @@index([competitorName])
+  @@map("competitive_intels")
+}
+// ============================================================================
+// Sprint 5a — Veille automatique
+// À ajouter à la fin de prisma/schema.prisma (après les modèles existants).
+// Ajouter aussi la relation sur Cabinet et Tender en suivant les commentaires.
+// ============================================================================
+
+enum ScrapedTenderStatus {
+  NEW
+  MATCHED
+  IGNORED
+  PROMOTED
+  DISMISSED
+}
+
+enum AlertType {
+  NEW_MATCH
+  DEADLINE_APPROACHING
+  SOURCE_ERROR
+}
+
+enum ScraperStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+model WatchDomain {
+  id              String   @id @default(uuid()) @db.Uuid
+  cabinetId       String   @map("cabinet_id") @db.Uuid
+  name            String   @db.VarChar(200)
+  keywords        String[] @default([])
+  sectors         String[] @default([])
+  countries       String[] @default([])
+  sources         String[] @default([])
+  minBudget       Decimal? @map("min_budget") @db.Decimal(15, 2)
+  maxBudget       Decimal? @map("max_budget") @db.Decimal(15, 2)
+  includeTenders  Boolean  @default(true) @map("include_tenders")
+  includeEoi      Boolean  @default(true) @map("include_eoi")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet         Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@index([cabinetId])
+  @@index([isActive])
+  @@map("watch_domains")
+}
+
+model ScrapedTender {
+  id                  String               @id @default(uuid()) @db.Uuid
+  source              String               @db.VarChar(50)
+  externalRef         String?              @map("external_ref") @db.VarChar(300)
+  title               String               @db.Text
+  description         String?              @db.Text
+  clientName          String?              @map("client_name") @db.VarChar(500)
+  sector              String?              @db.VarChar(300)
+  country             String?              @db.VarChar(50)
+  publishedAt         DateTime?            @map("published_at") @db.Timestamptz(6)
+  submissionDeadline  DateTime?            @map("submission_deadline") @db.Timestamptz(6)
+  budgetIndicative    Decimal?             @map("budget_indicative") @db.Decimal(15, 2)
+  currency            String?              @db.VarChar(3)
+  sourceUrl           String?              @map("source_url") @db.Text
+  documentUrls        String[]             @default([]) @map("document_urls")
+  isEoi               Boolean              @default(false) @map("is_eoi")
+  rawData             Json?                @map("raw_data")
+  status              ScrapedTenderStatus  @default(NEW)
+  matchedCabinetIds   String[]             @default([]) @map("matched_cabinet_ids") @db.Uuid
+  promotedTenderId    String?              @map("promoted_tender_id") @db.Uuid
+  scrapedAt           DateTime             @default(now()) @map("scraped_at") @db.Timestamptz(6)
+  processedAt         DateTime?            @map("processed_at") @db.Timestamptz(6)
+
+  promotedTender      Tender?              @relation("ScrapedTenderPromotion", fields: [promotedTenderId], references: [id], onDelete: SetNull)
+  alerts              Alert[]
+
+  @@unique([source, externalRef])
+  @@index([status])
+  @@index([country])
+  @@index([submissionDeadline])
+  @@index([scrapedAt(sort: Desc)])
+  @@map("scraped_tenders")
+}
+
+model Alert {
+  id              String     @id @default(uuid()) @db.Uuid
+  cabinetId       String     @map("cabinet_id") @db.Uuid
+  type            AlertType
+  title           String     @db.VarChar(500)
+  message         String?    @db.Text
+  scrapedTenderId String?    @map("scraped_tender_id") @db.Uuid
+  tenderId        String?    @map("tender_id") @db.Uuid
+  readAt          DateTime?  @map("read_at") @db.Timestamptz(6)
+  emailSentAt     DateTime?  @map("email_sent_at") @db.Timestamptz(6)
+  dismissedAt     DateTime?  @map("dismissed_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cabinet         Cabinet        @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  scrapedTender   ScrapedTender? @relation(fields: [scrapedTenderId], references: [id], onDelete: SetNull)
+  tender          Tender?        @relation("TenderAlerts", fields: [tenderId], references: [id], onDelete: SetNull)
+
+  @@index([cabinetId])
+  @@index([cabinetId, readAt])
+  @@index([createdAt(sort: Desc)])
+  @@map("alerts")
+}
+
+model ScraperRun {
+  id            String         @id @default(uuid()) @db.Uuid
+  source        String         @db.VarChar(50)
+  startedAt     DateTime       @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime?      @map("finished_at") @db.Timestamptz(6)
+  status        ScraperStatus  @default(SUCCESS)
+  itemsFound    Int            @default(0) @map("items_found")
+  itemsNew      Int            @default(0) @map("items_new")
+  itemsError    Int            @default(0) @map("items_error")
+  errorMessage  String?        @map("error_message") @db.Text
+
+  @@index([source, startedAt(sort: Desc)])
+  @@index([startedAt(sort: Desc)])
+  @@map("scraper_runs")
+}
+
+model J360Config {
+  id              String   @id @default(uuid()) @db.Uuid
+  cabinetId       String   @unique @db.Uuid
+  cabinet         Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  countries       String[] @default([])
+  tradeIds        Int[]    @default([])
+  announceTypes   String[] @default(["MC"])
+  isActive        Boolean  @default(true)
+  maxPagesPerRun  Int      @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("j360_configs")
+}
+
+model J360TradeCatalog {
+  id         Int    @id
+  name       String
+  summary    String?
+  categories Json
+
+  @@map("j360_trade_catalog")
+}
+
+// ============================================================================
+// IMPORTANT — Modifications aux modèles existants :
+//
+// Dans le modèle Cabinet, ajoute :
+//   watchDomains   WatchDomain[]
+//   alerts         Alert[]
+//
+// Dans le modèle Tender, ajoute :
+//   promotedFromScrapes  ScrapedTender[]  @relation("ScrapedTenderPromotion")
+//   alerts               Alert[]          @relation("TenderAlerts")
+// ============================================================================
+
+/// Résultat d'une analyse automatisée d'un DCE par Claude.
+model TenderAnalysis {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenderId        String   @unique @db.Uuid
+  tender          Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  estimatedBudget Float?
+  currency        String?
+  deadlineIso     DateTime?
+  country         String?
+  sector          String?
+  summary         String?  @db.Text
+
+  modelUsed       String
+  inputTokens     Int?
+  outputTokens    Int?
+  costUsd         Float?
+  documentsCount  Int
+  totalPages      Int?
+  confidence      String?
+  rawResponse     Json?
+
+  status          AnalysisStatus @default(COMPLETED)
+  errorMessage    String?        @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("tender_analyses")
+}
+
+model Consultant {
+  id              String            @id @default(uuid()) @db.Uuid
+  cabinetId       String            @map("cabinet_id") @db.Uuid
+  kind            ConsultantKind    @default(INTERNAL)
+  fullName        String            @map("full_name") @db.VarChar(200)
+  title           String?           @db.VarChar(300)
+  email           String?           @db.VarChar(200)
+  phone           String?           @db.VarChar(50)
+  yearsExperience Int?              @map("years_experience")
+  skills          String[]          @default([])
+  sectors         String[]          @default([])
+  languages       String[]          @default([])
+  cvFileKey       String?           @map("cv_file_key") @db.VarChar(500)
+  cvFileName      String?           @map("cv_file_name") @db.VarChar(300)
+  dailyRate       Decimal?          @map("daily_rate") @db.Decimal(12, 2)
+  currency        String            @default("XOF") @db.VarChar(3)
+  isActive        Boolean           @default(true) @map("is_active")
+  notes           String?           @db.Text
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet         Cabinet           @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  references      ReferenceMember[]
+
+  @@index([cabinetId, kind])
+  @@index([cabinetId, isActive])
+  @@map("consultants")
+}
+
+model Reference {
+  id              String            @id @default(uuid()) @db.Uuid
+  cabinetId       String            @map("cabinet_id") @db.Uuid
+  projectName     String            @map("project_name") @db.VarChar(500)
+  clientName      String            @map("client_name") @db.VarChar(300)
+  country         String?           @db.VarChar(50)
+  sector          String?           @db.VarChar(200)
+  description     String            @db.Text
+  outcome         String?           @db.Text
+  budget          Decimal?          @db.Decimal(15, 2)
+  currency        String            @default("XOF") @db.VarChar(3)
+  startDate       DateTime?         @map("start_date") @db.Date
+  endDate         DateTime?         @map("end_date") @db.Date
+  durationMonths  Int?              @map("duration_months")
+  status          ReferenceStatus   @default(COMPLETED)
+  tags            String[]          @default([])
+  attachments     String[]          @default([])
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet         Cabinet           @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  members         ReferenceMember[]
+
+  @@index([cabinetId, status])
+  @@index([cabinetId, sector])
+  @@map("references")
+}
+
+model ReferenceMember {
+  referenceId  String     @map("reference_id") @db.Uuid
+  consultantId String     @map("consultant_id") @db.Uuid
+  role         String?    @db.VarChar(200)
+  reference    Reference  @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@id([referenceId, consultantId])
+  @@map("reference_members")
+}
+
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ConsultantKind {
+  INTERNAL
+  EXTERNAL
+  PARTNER
+}
+
+enum ReferenceStatus {
+  COMPLETED
+  ONGOING
+  LOST
+  ARCHIVED
+}
+
+// ============================================================
+// SPRINT B — TenderProposal
+// ============================================================
+
+enum ProposalStatus {
+  DRAFT
+  READY
+  SUBMITTED
+}
+
+model TenderProposal {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenderId        String         @unique @map("tender_id") @db.Uuid
+
+  selectedTeam    Json?          @map("selected_team")
+  selectedRefs    Json?          @map("selected_references")
+
+  understanding   String?        @db.Text
+  methodology     String?        @db.Text
+  planning        String?        @db.Text
+
+  status          ProposalStatus @default(DRAFT)
+  generatedAt     DateTime?      @map("generated_at") @db.Timestamptz(6)
+  lastRegenerated Json?          @map("last_regenerated")
+  tokensUsed      Int?           @default(0) @map("tokens_used")
+
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tender          Tender         @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+  @@map("tender_proposals")
+}

@@ -1,0 +1,69 @@
+# === Dépendances ===
+node_modules/
+jspm_packages/
+
+# === Build / sortie ===
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# === Environnement ===
+# Garder .env.example, ignorer le reste
+.env
+.env.*
+!.env.example
+
+# === Logs ===
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# === Tests / coverage ===
+coverage/
+*.lcov
+.nyc_output/
+
+# === Caches ===
+.npm/
+.eslintcache
+.cache/
+.parcel-cache/
+.turbo/
+
+# === Données locales (Docker volumes, uploads, MinIO) ===
+data/
+uploads/
+storage/
+tmp/
+*.sqlite
+*.sqlite3
+*.db
+
+# === Prisma (local) ===
+prisma/*.db
+prisma/*.db-journal
+
+# === IDE / éditeurs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+.history/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Secrets / certificats ===
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
