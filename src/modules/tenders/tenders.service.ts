@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { PlatformService } from '../platform/platform.service';
 import {
   CreateTenderDto,
   ListTendersDto,
@@ -21,7 +22,10 @@ import {
 
 @Injectable()
 export class TendersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformService: PlatformService,
+  ) {}
 
   async list(filters: ListTendersDto) {
     const where: Prisma.TenderWhereInput = {
@@ -94,9 +98,7 @@ export class TendersService {
         include: {
           leadUser: { select: { id: true, firstName: true, lastName: true } },
         },
-      });
-
-      await tx.tenderTransition.create({
+      });      await tx.tenderTransition.create({
         data: {
           tenderId: tender.id,
           fromStage: null,
@@ -146,6 +148,10 @@ export class TendersService {
       );
     }
 
+    // Note obligatoire pour CANCELLED (traçabilité business — LOST a déjà lostReason)
+    if (dto.toStage === 'CANCELLED' && (!dto.note || dto.note.trim().length < 3)) {
+      throw new BadRequestException('Un motif est requis pour annuler l\'AO (min 3 caractères)');
+    }
     if (dto.toStage === 'WON' && !dto.wonAmount) {
       throw new BadRequestException('Le montant signé (wonAmount) est requis pour passer à WON');
     }
@@ -155,7 +161,7 @@ export class TendersService {
 
     const nextIsOpen = !TENDER_CLOSED_STAGES.includes(dto.toStage);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.tender.update({
         where: { id },
         data: {
@@ -178,6 +184,17 @@ export class TendersService {
 
       return updated;
     });
+
+    // Commission auto pour les AO WON (best-effort, ne bloque pas la transition)
+    if (dto.toStage === 'WON' && dto.wonAmount) {
+      try {
+        await this.platformService.createCommissionForWonTender(id, Number(dto.wonAmount));
+      } catch (err: any) {
+        console.error('[CommissionAuto] Failed to create commission for WON tender', id, err.message);
+      }
+    }
+
+    return result;
   }
 
   async getHistory(id: string) {

@@ -170,8 +170,9 @@ export class TransitionTenderDto {
   toStage!: TenderStage;
 
   @IsString()
-  @MinLength(3, { message: 'Une note est requise pour tracer la transition (min 3 caractères)' })
-  note!: string;
+  @IsOptional()
+  @MinLength(3, { message: 'La note doit faire au moins 3 caractères' })
+  note?: string;
 
   /** Montant final signé — requis si toStage = WON */
   @IsOptional()

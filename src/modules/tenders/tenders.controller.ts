@@ -72,7 +72,7 @@ export class TendersController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   delete(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.tendersService.delete(id);
   }

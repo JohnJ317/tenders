@@ -5,6 +5,7 @@ import {
 import { Response } from 'express';
 import { ProposalsService } from './proposals.service';
 import { ProposalDocxService } from './proposal-docx.service';
+import { ProposalTemplatesModule } from '../proposal-templates/proposal-templates.module';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { JwtPayload } from '../../common/tenant/tenant.middleware';
@@ -150,9 +151,73 @@ export class ProposalsController {
   }
 
 
+  /** PATCH /template : set the template for the proposal */
+  @Patch('template')
+  setTemplate(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+    @Body() body: { templateCode: string },
+  ) {
+    return this.proposals.setTemplate(user.cabinetId, tenderId, body.templateCode);
+  }
+
+  /** PATCH /team-mode : change team selection mode (strict/complete) */
+  @Patch('team-mode')
+  setTeamMode(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+    @Body() body: { mode: 'strict' | 'complete' },
+  ) {
+    return this.proposals.setTeamMode(user.cabinetId, tenderId, body.mode);
+  }
+
+  /** POST /pricing/generate : génère le breakdown pricing avec Claude */
+  @Post('pricing/generate')
+  generatePricing(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+  ) {
+    return this.proposals.generatePricingBreakdown(user.cabinetId, tenderId);
+  }
+
+  /** PATCH /pricing/cell : met à jour une cellule */
+  @Patch('pricing/cell')
+  updatePricingCell(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+    @Body() body: { phaseIndex: number; grade: string; days: number },
+  ) {
+    return this.proposals.updatePricingCell(
+      user.cabinetId, tenderId, body.phaseIndex, body.grade, body.days,
+    );
+  }
+
+  /** PATCH /pricing/phase/:phaseIndex/validate : valide/invalide une phase */
+  @Patch('pricing/phase/:phaseIndex/validate')
+  validatePricingPhase(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+    @Param('phaseIndex') phaseIndex: string,
+    @Body() body: { validated: boolean },
+  ) {
+    return this.proposals.validatePricingPhase(
+      user.cabinetId, tenderId, Number(phaseIndex), body.validated,
+    );
+  }
+
+  /** POST /pricing/promote : crée un TenderPricing officiel */
+  @Post('pricing/promote')
+  promotePricing(
+    @CurrentUser() user: JwtPayload,
+    @Param('tenderId', ParseUUIDPipe) tenderId: string,
+  ) {
+    return this.proposals.promoteToTenderPricing(user.cabinetId, tenderId, user.sub);
+  }
+
 }
 
 @Module({
+  imports: [ProposalTemplatesModule],
   controllers: [ProposalsController],
   providers: [ProposalsService, ProposalDocxService],
   exports: [ProposalsService, ProposalDocxService],

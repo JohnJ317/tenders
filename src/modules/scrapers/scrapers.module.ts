@@ -82,13 +82,13 @@ export class ScrapersController {
   }
 
   @Post('run/:sourceCode')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   runOne(@Param('sourceCode') sourceCode: string) {
     return this.scrapers.runScraper(sourceCode);
   }
 
   @Post('run-all')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   runAll() { return this.scrapers.runAll(); }
 }
 

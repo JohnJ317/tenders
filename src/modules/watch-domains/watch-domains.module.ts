@@ -70,7 +70,7 @@ export class WatchDomainsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   delete(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.delete(id);
   }

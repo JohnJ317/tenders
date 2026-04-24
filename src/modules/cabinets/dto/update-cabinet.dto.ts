@@ -1,4 +1,5 @@
-import { IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Length, Matches, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Country } from '@prisma/client';
 
 export class UpdateCabinetDto {
@@ -20,4 +21,11 @@ export class UpdateCabinetDto {
   @IsString()
   @Length(2, 5)
   language?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  @Max(1)
+  vatRate?: number;
 }

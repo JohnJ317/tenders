@@ -16,7 +16,40 @@ export class ScrapersService {
   ) {}
 
   /** Retourne la liste de tous les scrapers enregistrés (enabled ou non) */
+  /**
+   * Sources cachées de l'UI (stubs non implémentés + sources bloquées anti-bot).
+   * Elles restent chargées dans le backend pour garder la possibilité de les activer,
+   * mais ne sont pas montrées aux utilisateurs dans /sources pour éviter la confusion.
+   */
+  private readonly HIDDEN_SOURCES = new Set([
+    'UNGM',       // Cloudflare anti-bot, non bypassable
+    'SIGMAP_CI',  // remplacé par J360 + EDUCARRIERE_CI (couverture CI)
+    'ARMP_SN',    // stub non implémenté
+    'ARCOP_BF',   // stub non implémenté
+    'DGMP_ML',    // stub non implémenté
+    'ARMP_TG',    // stub non implémenté
+    'ARMP_BJ',    // stub non implémenté
+    'ARMP_NE',    // stub non implémenté
+    'EU_TED',     // nécessite API key OAuth
+    'USAID_SAM',  // nécessite API key SAM.gov
+  ]);
+
+  /** Retourne la liste de tous les scrapers visibles (hors HIDDEN_SOURCES) */
   listSources() {
+    return this.scrapers
+      .filter((s) => !this.HIDDEN_SOURCES.has(s.sourceCode))
+      .map((s) => ({
+        sourceCode: s.sourceCode,
+        sourceLabel: s.sourceLabel,
+        countries: s.countries,
+        baseUrl: s.baseUrl,
+        enabled: s.enabled,
+        intervalMinutes: s.intervalMinutes,
+      }));
+  }
+
+  /** Retourne TOUTES les sources, y compris cachées (pour usage interne/admin) */
+  listAllSources() {
     return this.scrapers.map((s) => ({
       sourceCode: s.sourceCode,
       sourceLabel: s.sourceLabel,

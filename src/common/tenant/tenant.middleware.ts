@@ -24,6 +24,9 @@ export interface JwtPayload {
 export class TenantMiddleware implements NestMiddleware {
   private readonly publicPaths = [
     '/api/auth/login',
+    '/api/webhooks/wave',
+  '/api/invitations/accept',
+  '/api/invitations/validate',
     '/api/auth/register',
     '/api/health',
   ];

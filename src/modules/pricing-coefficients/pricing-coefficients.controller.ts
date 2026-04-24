@@ -47,13 +47,13 @@ export class PricingCoefficientsController {
   }
 
   @Post()
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   create(@Body() dto: CreateCoefficientDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCoefficientDto,
@@ -62,7 +62,7 @@ export class PricingCoefficientsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   delete(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.delete(id);
   }

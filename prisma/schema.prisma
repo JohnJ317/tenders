@@ -36,6 +36,7 @@ enum Role {
   ASSOCIE
   MANAGER
   CONSULTANT
+  SUPER_ADMIN
 }
 
 enum Grade {
@@ -164,8 +165,10 @@ model Cabinet {
   vatRate       Decimal         @default(0.18) @db.Decimal(5, 4)
   language      String          @default("fr") @db.VarChar(5)
   status        CabinetStatus   @default(TRIAL)
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz(6)
   createdAt     DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime        @updatedAt @db.Timestamptz(6)
+  platformCommissionRate Decimal? @default(0) @map("platform_commission_rate") @db.Decimal(5, 4)
 
   users         User[]
   activities    Activity[]
@@ -178,6 +181,16 @@ model Cabinet {
   j360Config    J360Config?
   consultants   Consultant[]
   references    Reference[]
+  proposalTemplates ProposalTemplate[]
+  subscription       Subscription?
+  payments           Payment[]
+  usageLogs          ClaudeUsageLog[]
+  commissionInvoices CommissionInvoice[]
+  subscriptionNotifications SubscriptionNotificationSent[]
+
+
+  logoUrl       String?         @map("logo_url") @db.Text
+  
   
 
   @@index([status])
@@ -210,6 +223,14 @@ model User {
   eventDocumentsUploaded     EventDocument[]    @relation("EventDocumentUploader")
   tenderPricingsCreated      TenderPricing[]    @relation("TenderPricingCreator")
   competitiveIntelsCreated   CompetitiveIntel[] @relation("CompetitiveIntelCreator")
+  claudeUsageLogs            ClaudeUsageLog[]
+
+  invitationToken     String?   @map("invitation_token")
+  invitationExpiresAt DateTime? @map("invitation_expires_at") @db.Timestamptz(6)
+  invitedById         String?   @map("invited_by_id") @db.Uuid
+  invitedAt           DateTime? @map("invited_at") @db.Timestamptz(6)
+  invitedBy           User?     @relation("UserInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitedUsers        User[]    @relation("UserInviter")
 
   @@unique([cabinetId, email])
   @@index([cabinetId])
@@ -285,6 +306,7 @@ model Tender {
   competitiveIntels  CompetitiveIntel[]
   analysis           TenderAnalysis?
   proposal           TenderProposal?
+  commissionInvoice  CommissionInvoice?
   promotedFromScrapes  ScrapedTender[]  @relation("ScrapedTenderPromotion")
   alertsRef            Alert[]          @relation("TenderAlerts")
 
@@ -455,6 +477,7 @@ model TenderPricing {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById          String?  @map("created_by_id") @db.Uuid
+  proposals         TenderProposal[] @relation("ProposalPricing")
 
   tender               Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
   createdBy            User?    @relation("TenderPricingCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -789,8 +812,209 @@ model TenderProposal {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  templateCode    String?        @map("template_code")
+  teamComplete    Json?          @map("team_complete")
+  gaps            Json?
+  teamMode        String         @default("strict") @map("team_mode")
+
+  pricingBreakdown  Json?          @map("pricing_breakdown")
+  pricingValidated  Boolean        @default(false) @map("pricing_validated")
+  tenderPricingId   String?        @map("tender_pricing_id") @db.Uuid
+  tenderPricing     TenderPricing? @relation("ProposalPricing", fields: [tenderPricingId], references: [id], onDelete: SetNull)
+
   tender          Tender         @relation(fields: [tenderId], references: [id], onDelete: Cascade)
 
   @@index([tenderId])
   @@map("tender_proposals")
+}
+
+model ProposalTemplate {
+  id                  String   @id @default(uuid()) @db.Uuid
+  cabinetId           String   @map("cabinet_id") @db.Uuid
+  code                String   // audit_financier, commissariat, passation_marches, conseil, audit_it, formation
+  label               String
+  description         String?  @db.Text
+
+  // Prompts personnalisés (markdown autorisé)
+  understandingPrompt String   @map("understanding_prompt") @db.Text
+  methodologyPrompt   String   @map("methodology_prompt") @db.Text
+  planningPrompt      String   @map("planning_prompt") @db.Text
+  teamPrompt          String   @map("team_prompt") @db.Text
+
+  // Structure type (facultative)
+  typicalTeamSize     Int?     @default(5) @map("typical_team_size")
+  typicalDurationMonths Int?   @map("typical_duration_months")
+
+  isActive            Boolean  @default(true) @map("is_active")
+  isSystem            Boolean  @default(false) @map("is_system")  // true si template par défaut
+
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet             Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([cabinetId, code])
+  @@index([cabinetId])
+  @@map("proposal_templates")
+}
+
+// ============================================================
+// PLATFORM (SaaS admin)
+// ============================================================
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  GRACE_PERIOD
+  SUSPENDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  WAVE
+  BANK_TRANSFER
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CommissionStatus {
+  PENDING
+  INVOICED
+  PAID
+  WAIVED
+}
+
+model PlatformConfig {
+  id                            String   @id @default(uuid()) @db.Uuid
+  claudeInputPricePerMtokFcfa   Decimal  @default(605) @map("claude_input_price_per_mtok_fcfa") @db.Decimal(15, 2)
+  claudeOutputPricePerMtokFcfa  Decimal  @default(3025) @map("claude_output_price_per_mtok_fcfa") @db.Decimal(15, 2)
+  monthlySubscriptionFcfa       Decimal  @default(15000) @map("monthly_subscription_fcfa") @db.Decimal(15, 2)
+  wavePaymentLink               String   @default("https://pay.wave.com/m/M_ci_AF-r1MGhSQcn/c/ci/?amount=15000") @map("wave_payment_link") @db.Text
+  suspensionGraceDays           Int      @default(1) @map("suspension_grace_days")
+  defaultCommissionRate         Decimal  @default(0.02) @map("default_commission_rate") @db.Decimal(5, 4)
+  createdAt                     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_config")
+}
+
+model ClaudeUsageLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  cabinetId    String   @map("cabinet_id") @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  feature      String   @db.VarChar(100)
+  model        String   @db.VarChar(100)
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  costFcfa     Decimal  @map("cost_fcfa") @db.Decimal(15, 4)
+  tenderId     String?  @map("tender_id") @db.Uuid
+  durationMs   Int?     @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([cabinetId, createdAt])
+  @@index([feature])
+  @@map("claude_usage_logs")
+}
+
+model Subscription {
+  id                  String             @id @default(uuid()) @db.Uuid
+  cabinetId           String             @unique @map("cabinet_id") @db.Uuid
+  status              SubscriptionStatus @default(TRIAL)
+  currentPeriodStart  DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd    DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  nextBillingDate     DateTime?          @map("next_billing_date") @db.Timestamptz(6)
+  lastPaidAt          DateTime?          @map("last_paid_at") @db.Timestamptz(6)
+  monthlyAmountFcfa   Decimal            @default(15000) @map("monthly_amount_fcfa") @db.Decimal(15, 2)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cabinet  Cabinet   @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  payments Payment[]
+  notifications SubscriptionNotificationSent[]
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  cabinetId         String        @map("cabinet_id") @db.Uuid
+  subscriptionId    String?       @map("subscription_id") @db.Uuid
+  amountFcfa        Decimal       @map("amount_fcfa") @db.Decimal(15, 2)
+  method            PaymentMethod @default(WAVE)
+  status            PaymentStatus @default(PENDING)
+  reference         String?       @db.VarChar(200)
+  waveTransactionId String?       @unique @map("wave_transaction_id") @db.VarChar(200)
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz(6)
+  periodStart       DateTime?     @map("period_start") @db.Timestamptz(6)
+  periodEnd         DateTime?     @map("period_end") @db.Timestamptz(6)
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  
+  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  webhookEvents WebhookEventProcessed[]
+
+  @@index([cabinetId, createdAt])
+  @@map("payments")
+}
+
+model CommissionInvoice {
+  id                   String           @id @default(uuid()) @db.Uuid
+  cabinetId            String           @map("cabinet_id") @db.Uuid
+  tenderId             String           @unique @map("tender_id") @db.Uuid
+  wonAmountFcfa        Decimal          @map("won_amount_fcfa") @db.Decimal(15, 2)
+  commissionRate       Decimal          @map("commission_rate") @db.Decimal(5, 4)
+  commissionAmountFcfa Decimal          @map("commission_amount_fcfa") @db.Decimal(15, 2)
+  status               CommissionStatus @default(PENDING)
+  invoicedAt           DateTime?        @map("invoiced_at") @db.Timestamptz(6)
+  paidAt               DateTime?        @map("paid_at") @db.Timestamptz(6)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  tender  Tender  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@map("commission_invoices")
+}
+
+model WebhookEventProcessed {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventId     String   @unique @map("event_id") @db.VarChar(200)
+  eventType   String   @map("event_type") @db.VarChar(100)
+  source      String   @default("wave") @db.VarChar(50)
+  paymentId   String?  @map("payment_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([processedAt])
+  @@map("webhook_events_processed")
+}
+
+model SubscriptionNotificationSent {
+  id                  String    @id @default(uuid()) @db.Uuid
+  subscriptionId      String    @map("subscription_id") @db.Uuid
+  cabinetId           String    @map("cabinet_id") @db.Uuid
+  notificationType    String    @map("notification_type") @db.VarChar(50)
+  relatedBillingDate  DateTime? @map("related_billing_date") @db.Timestamptz(6)
+  sentAt              DateTime  @default(now()) @map("sent_at") @db.Timestamptz(6)
+  emailTo             String    @map("email_to") @db.VarChar(200)
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  cabinet      Cabinet      @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, notificationType, relatedBillingDate])
+  @@index([subscriptionId])
+  @@index([sentAt])
+  @@map("subscription_notifications_sent")
 }

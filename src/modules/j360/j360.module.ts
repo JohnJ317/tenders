@@ -84,7 +84,7 @@ export class J360Controller {
   }
 
   @Put('config')
-  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   updateConfig(
     @CurrentUser() user: JwtPayload,
     @Body() payload: J360ConfigPayload,

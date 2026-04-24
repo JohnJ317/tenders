@@ -31,6 +31,9 @@ export class UsersService {
     lastLoginAt: true,
     createdAt: true,
     updatedAt: true,
+    invitationExpiresAt: true,
+    invitedAt: true,
+    passwordHash: false, // toujours masqué
   };
 
   async list() {

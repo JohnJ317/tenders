@@ -50,6 +50,9 @@ export class AuthService {
     if (user.cabinet.status === 'SUSPENDED' || user.cabinet.status === 'CANCELLED') {
       throw new UnauthorizedException(`Cabinet ${user.cabinet.status.toLowerCase()}`);
     }
+    if ((user.cabinet as any).deletedAt) {
+      throw new UnauthorizedException('Ce compte n\'est plus accessible. Contactez le support.');
+    }
 
     // Dernière connexion — update en mode platform
     await this.prisma.withPlatformContext(() =>

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ClaudeUsageService } from '../../common/platform/claude-usage.service';
 import { StorageService } from '../../common/storage/storage.service';
 
 /**
@@ -29,6 +30,7 @@ export class ClaudeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly usageService: ClaudeUsageService,
   ) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     this.model = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5';
@@ -95,7 +97,7 @@ export class ClaudeService {
       }
 
       // 3. Appel à Claude
-      const analysis = await this.callClaude(tender, inputText);
+      const analysis = await this.callClaude({ title: tender.title, country: tender.country }, tenderId, tender.cabinetId, inputText);
 
       // 4. Sauver le résultat
       const saved = await this.prisma.tenderAnalysis.update({
@@ -179,6 +181,8 @@ export class ClaudeService {
   /** Appelle Claude avec un prompt structuré et parse la réponse JSON. */
   private async callClaude(
     tender: { title: string; country: string | null },
+    tenderId: string,
+    cabinetId: string,
     documentsText: string,
   ) {
     const systemPrompt = `Tu es un expert en analyse d'appels d'offres publics et privés, spécialisé dans les marchés africains francophones. Ton rôle est d'extraire des informations structurées de dossiers de consultation des entreprises (DCE) pour aider un cabinet d'audit / conseil à décider rapidement d'y répondre ou non.
@@ -215,6 +219,16 @@ Retourne UNIQUEMENT le JSON, rien d'autre.`;
       temperature: 0.1, // déterministe pour extraction de faits
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
+    });
+
+    // Log usage for platform tracking
+    await this.usageService.logUsage({
+      cabinetId,
+      feature: 'tender:analysis',
+      model: this.model,
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+      tenderId,
     });
 
     // Récupère le texte de la réponse

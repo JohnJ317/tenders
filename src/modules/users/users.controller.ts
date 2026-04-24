@@ -29,6 +29,12 @@ export class UsersController {
     return this.usersService.list();
   }
 
+  @Get('me')
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER, Role.CONSULTANT, Role.SUPER_ADMIN)
+  me(@CurrentUser() user: JwtPayload) {
+    return this.usersService.getById(user.sub);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   getById(@Param('id', new ParseUUIDPipe()) id: string) {
@@ -36,13 +42,13 @@ export class UsersController {
   }
 
   @Post()
-  @Roles(Role.ADMIN_CABINET)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN_CABINET)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateUserDto,
@@ -51,7 +57,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN_CABINET)
+  @Roles(Role.ADMIN_CABINET, Role.ASSOCIE, Role.MANAGER)
   deactivate(
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: JwtPayload,
