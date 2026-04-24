@@ -1,3 +1,27 @@
+-- ============================================================================
+-- BOOTSTRAP — rôle app runtime `tenderpro`
+-- ============================================================================
+-- En local, ce rôle est créé par docker/init-db.sql. Sur une Postgres managée
+-- (Railway, Neon, RDS…) l'init-db.sql ne tourne pas, donc les GRANTs plus bas
+-- échouent et font crasher la migration. On crée le rôle ici de façon
+-- idempotente pour que la migration soit self-contained partout.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tenderpro') THEN
+    CREATE ROLE tenderpro LOGIN PASSWORD 'tenderpro';
+  END IF;
+END
+$$;
+
+-- GRANT CONNECT sur la DB courante (nom dynamique car il diffère selon l'environnement).
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO tenderpro', current_database());
+END
+$$;
+
+GRANT USAGE ON SCHEMA public TO tenderpro;
+
 -- CreateEnum
 CREATE TYPE "CabinetStatus" AS ENUM ('TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED');
 
