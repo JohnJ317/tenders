@@ -12,10 +12,17 @@ import {
   EventStage,
   PricingCoefficientCategory,
 } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 import { DEFAULT_COEFFICIENTS } from '../src/modules/pricing-coefficients/default-coefficients';
 
-const prisma = new PrismaClient();
+// Prisma 7 : la connexion passe par un driver adapter.
+// On seede avec le rôle owner (DATABASE_URL_ADMIN) pour ne pas être bloqué par RLS.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL_ADMIN ?? process.env.DATABASE_URL,
+  }),
+});
 
 async function main() {
   console.log('🌱 Seeding database...');

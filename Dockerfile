@@ -16,7 +16,7 @@ RUN npm ci
 
 # ---------- Build ----------
 FROM deps AS builder
-COPY tsconfig.json nest-cli.json ./
+COPY tsconfig.json nest-cli.json prisma.config.ts ./
 COPY src ./src
 COPY scripts ./scripts
 RUN npx prisma generate && npm run build
@@ -33,6 +33,11 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/scripts ./scripts
+# Prisma 7 : `migrate deploy` lit sa connexion depuis prisma.config.ts
+# (le datasource du schéma ne porte plus d'url). tsconfig.json est requis
+# pour que la CLI puisse charger ce fichier TypeScript.
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 RUN chmod +x ./scripts/entrypoint.sh
 
 EXPOSE 3000

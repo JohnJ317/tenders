@@ -13,6 +13,11 @@ set -eu
 if [ "${PRISMA_RESET_ON_START:-false}" = "true" ]; then
   echo "⚠  PRISMA_RESET_ON_START=true → reset complet de la DB"
   npx prisma migrate reset --force --skip-generate --skip-seed
+elif [ "${SKIP_MIGRATIONS:-false}" = "true" ]; then
+  # Cas d'une base déjà provisionnée dont l'historique _prisma_migrations est
+  # vide (schéma poussé via `db push`) : `migrate deploy` rejouerait les
+  # migrations depuis zéro et échouerait sur des tables existantes.
+  echo "↷  SKIP_MIGRATIONS=true → migrations non appliquées au démarrage"
 else
   npx prisma migrate deploy
 fi

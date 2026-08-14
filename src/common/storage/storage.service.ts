@@ -66,8 +66,14 @@ export class StorageService implements OnModuleInit {
         await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
         this.logger.log(`Bucket "${this.bucket}" créé`);
       } catch (err) {
-        this.logger.error(`Impossible de créer le bucket "${this.bucket}"`, err);
-        throw err;
+        // Non bloquant : si MinIO/S3 est injoignable au démarrage, l'API doit
+        // quand même se lever. Seules les opérations de stockage échoueront,
+        // avec leur propre erreur explicite.
+        this.logger.warn(
+          `Stockage S3 injoignable — bucket "${this.bucket}" non initialisé. ` +
+            `Les upload/download de documents échoueront tant que MinIO n'est pas démarré.`,
+        );
+        this.logger.debug(err);
       }
     }
   }

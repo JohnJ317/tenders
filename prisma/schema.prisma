@@ -3,9 +3,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7 : plus d'`url` ici. La connexion passe par le driver adapter
+// (PrismaService pour le runtime, prisma.config.ts pour la CLI Migrate).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL_ADMIN")
 }
 
 enum CabinetStatus {

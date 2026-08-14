@@ -68,3 +68,6 @@ desktop.ini
 *.crt
 *.p12
 *.pfx
+
+# Archive de build
+dist.zip
